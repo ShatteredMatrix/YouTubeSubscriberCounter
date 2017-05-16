@@ -1,71 +1,50 @@
 import http.client
 import curses
 import time
+import json
 import sys
 
-def getSubscribersNumber(channelPageHtml):
-    pattern = """<span class="yt-subscription-button-subscriber-count-branded-horizontal subscribed yt-uix-tooltip" """
-    channelPageHtmlString = channelPageHtml.decode("utf-8")
-    pos = channelPageHtmlString.find(pattern);
+#from pprint import pprint
+def main(screen) :
+    youtubeApiKey = """(enter your api key here)"""
 
-    #print (channelPageHtmlString)
-    #print (pos)
+    numberOfSystemArguments = len(sys.argv) - 1
 
-    i = pos;
-    while channelPageHtmlString[i] != '>' :
+    channelName = "UCMYUDLNxMvqxgjYc4tGwaow"
+
+    i = 0
+    while i < numberOfSystemArguments:
+        if sys.argv[i] == "--channel" :
+            channelName = sys.argv[i + 1]
+            i = i + 1
         i = i + 1
-    i = i + 1
-    subscribers = 0
-    #while int(channelPageHtmlString[i]) >= int('0') and int(channelPageHtmlString[i]) <= int('9'):
-    while channelPageHtmlString[i] != '<' :
-        if channelPageHtmlString[i] != '.' :
-            subscribers = subscribers * 10 + int(channelPageHtmlString[i])
-        i = i + 1
-    return subscribers
 
-numberOfSystemArguments = len(sys.argv) - 1
+    youtubeConnection = http.client.HTTPSConnection("www.googleapis.com")
+    requestForm = "/youtube/v3/channels?part=statistics&id={}&key={}".format(channelName, youtubeApiKey);
+    frame = 50
+    sampleNumber = 0
+    while(1):
+        screen.nodelay(True)
+        input = screen.getch()
+        if input == ord('q') :
+            break
 
-channelName = "/channel/UCMYUDLNxMvqxgjYc4tGwaow/"
+        if frame == 50 :
+            youtubeConnection.request("GET", requestForm)
+            request = youtubeConnection.getresponse()
 
-i = 0
-while i < numberOfSystemArguments:
-    if sys.argv[i] == "--channel" :
-        channelName = sys.argv[i + 1]
-        i = i + 1
-    i = i + 1
+            screen.addstr(23, 0, "Last Request status: {} {}".format(request.status, request.reason))
 
-screen = curses.initscr()
-curses.noecho()
-curses.cbreak()
-screen.keypad(True)
+            channelPageHtml = request.read()
+            dataAll = json.loads(channelPageHtml.decode("utf-8"));
+            dataStatistics = dataAll["items"][0]["statistics"]
 
-youtubeConnection = http.client.HTTPSConnection("www.youtube.com")
-frame = 50
-sampleNumber = 0
-while(1):
-    screen.nodelay(True)
-    input = screen.getch()
-    if input == ord('q') :
-        break
+            screen.addstr(0, 0, "Number of Subscribers: {} @ SampleNumber: {}".format(dataStatistics["subscriberCount"], sampleNumber))
+            frame = 0
+            sampleNumber = sampleNumber + 1
 
-    if frame == 50 :
-        youtubeConnection.request("GET", channelName)
-        request = youtubeConnection.getresponse()
-        #print (request.status, request.reason)
-        screen.addstr(1, 0, "{} {}".format(request.status, request.reason))
-
-        channelPageHtml = request.read()
-
-        #print (getSubscribersNumber(channelPageHtml))
-        screen.addstr(0, 0, "Number of Subscribers: {} @ SampleNumber: {}".format(getSubscribersNumber(channelPageHtml), sampleNumber))
-        frame = 0
-        sampleNumber = sampleNumber + 1
-
-    screen.refresh()
-    time.sleep(0.01)
-    frame = frame + 1
-
-curses.nocbreak()
-screen.keypad(False)
-curses.echo()
-curses.endwin()
+        screen.refresh()
+        time.sleep(0.01)
+        frame = frame + 1
+        
+curses.wrapper(main)
